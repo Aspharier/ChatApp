@@ -6,11 +6,15 @@ import cors from 'cors'; // Cross-Origin Resource Sharing
 
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
+import { initializeSocket } from "./socket/socket.ts";
 
 // Creates an Express app
 const PORT = process.env.PORT || 3000;
 const app = express();
 const server = http.createServer(app);
+
+// listen to the socket events
+initializeSocket(server);
 
 // Connects to MongoDB
 connectDB();
