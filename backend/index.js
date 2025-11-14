@@ -1,10 +1,11 @@
-require("dotenv").config();
-const express = require("express");
-const http = require("http");
-const cors = require("cors"); // Cross-Origin Resource Sharing
+import dotenv from "dotenv";
+dotenv.config();
+import express from 'express';
+import http from 'http';
+import cors from 'cors'; // Cross-Origin Resource Sharing
 
-const connectDB = require("./config/db");
-const authRoutes = require("./routes/auth.routes");
+import connectDB from "./config/db.js";
+import authRoutes from "./routes/auth.routes.js";
 
 // Creates an Express app
 const PORT = process.env.PORT || 3000;

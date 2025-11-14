@@ -1,13 +1,13 @@
-import User from "../modals/User";
-import { generateToken } from "../utils/token";
-const bcryptjs = require("bcryptjs");
+import User from "../modals/User.js";
+import { generateToken } from "../utils/token.js";
+import bcryptjs from 'bcryptjs';
 
 export const registerUser = async (req, res) => {
   const { email, password, name, avatar } = req.body;
 
   try {
     // check user already exist or not
-    let user = User.findOne({ email });
+    let user = await User.findOne({ email });
     if (user) {
       res.status(400).json({ success: false, msg: "User already exists" });
       return;
@@ -40,7 +40,7 @@ export const registerUser = async (req, res) => {
     res.status(500).json({ success: false, msg: "Server error" });
   }
 };
-export const loginUser = async () => {
+export const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
