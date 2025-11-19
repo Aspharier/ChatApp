@@ -6,7 +6,7 @@ import cors from 'cors'; // Cross-Origin Resource Sharing
 
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
-import { initializeSocket } from "./socket/socket.ts";
+import { initializeSocket } from "./socket/socket.js";
 
 // Creates an Express app
 const PORT = process.env.PORT || 3000;

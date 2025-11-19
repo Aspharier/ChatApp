@@ -1,20 +1,21 @@
-import { Socket, Server as SocketIOServer } from "socket.io";
+import { Server } from "socket.io";
 import Conversation from "../modals/Conversation.js";
 import Message from "../modals/Message.js";
-export function registerChatEvents(io: SocketIOServer, socket: Socket) {
+
+export function registerChatEvents(io, socket) {
   socket.on("getConversations", async () => {
-    console.log("GetConversations event");
+    console.log("getConversations event");
+
     try {
       const userId = socket.data.userId;
+
       if (!userId) {
         return socket.emit("getConversations", {
           success: false,
           msg: "Unauthorized",
         });
-        return;
       }
 
-      // find all the conversations where user is a participant
       const conversations = await Conversation.find({
         participants: userId,
       })
@@ -29,9 +30,12 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
         })
         .lean();
 
-      socket.emit("getConversations", { success: true, data: conversations });
+      socket.emit("getConversations", {
+        success: true,
+        data: conversations,
+      });
     } catch (error) {
-      console.log("getConversations Error: ", error);
+      console.log("getConversations Error:", error);
       socket.emit("getConversations", {
         success: false,
         msg: "Failed to fetch conversations.",
@@ -39,10 +43,11 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
     }
   });
   socket.on("newConversation", async (data) => {
-    console.log("newConverstaion Event: ", data);
+    console.log("newConversation event:", data);
+
     try {
+      // If direct conversation, check if it already exists
       if (data.type === "direct") {
-        // check if already exists
         const existingConversation = await Conversation.findOne({
           type: "direct",
           participants: { $all: data.participants, $size: 2 },
@@ -62,26 +67,26 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
         }
       }
 
-      // create new conversation
+      // Create new conversation
       const conversation = await Conversation.create({
         type: data.type,
         participants: data.participants,
-        name: data.name || "", // can be empty if direct conversation
+        name: data.name || "",
         avatar: data.avatar || "",
         createdBy: socket.data.userId,
       });
 
-      // get all the connected sockets
+      // Get all online sockets for given participants
       const connectedSockets = Array.from(io.sockets.sockets.values()).filter(
         (s) => data.participants.includes(s.data.userId)
       );
 
-      // join the conversation by all online participants
+      // Have all online users join this new room
       connectedSockets.forEach((participantSocket) => {
         participantSocket.join(conversation._id.toString());
       });
 
-      // send conversation data back (populated)
+      // Populate conversation data
       const populatedConversation = await Conversation.findById(
         conversation._id
       )
@@ -95,13 +100,13 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
         throw new Error("Failed to populate conversation");
       }
 
-      // emit conversation to all the participants
+      // Emit to all participants in the room
       io.to(conversation._id.toString()).emit("newConversation", {
         success: true,
         data: { ...populatedConversation, isNew: true },
       });
-    } catch (error: any) {
-      console.log("newConversation Error: ", error);
+    } catch (error) {
+      console.log("newConversation Error:", error);
       socket.emit("newConversation", {
         success: false,
         msg: "Failed to create conversation.",
@@ -109,7 +114,8 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
     }
   });
   socket.on("newMessage", async (data) => {
-    console.log("newMessage Event: ", data);
+    console.log("newMessage event:", data);
+
     try {
       const message = await Message.create({
         conversationId: data.conversationId,
@@ -118,54 +124,58 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
         attachement: data.attachement,
       });
 
+      const payload = {
+        id: message._id,
+        content: data.content,
+        sender: {
+          id: data.sender.id,
+          name: data.sender.name,
+          avatar: data.sender.avatar,
+        },
+        attachement: data.attachement,
+        createdAt: new Date().toISOString(),
+        conversationId: data.conversationId,
+      };
+
+      // emit to all clients in room
       io.to(data.conversationId).emit("newMessage", {
         success: true,
-        data: {
-          id: message._id,
-          content: data.content,
-          sender: {
-            id: data.sender.id,
-            name: data.sender.name,
-            avatar: data.sender.avatar,
-          },
-          attachement: data.attachement,
-          createdAt: new Date().toISOString(),
-          conversationId: data.conversationId,
-        },
+        data: payload,
       });
 
-      // update conversation's last message
+      // update last message
       await Conversation.findByIdAndUpdate(data.conversationId, {
         lastMessage: message._id,
       });
     } catch (error) {
-      console.log("newMessage Error: ", error);
+      console.log("newMessage Error:", error);
       socket.emit("newMessage", {
         success: false,
         msg: "Failed to send message.",
       });
     }
   });
-  socket.on("getMessages", async (data: { conversationId: string }) => {
-    console.log("getMessages Event: ", data);
+  socket.on("getMessages", async (data) => {
+    console.log("getMessages event:", data);
+
     try {
       const messages = await Message.find({
         conversationId: data.conversationId,
       })
         .sort({ createdAt: -1 })
-        .populate<{ senderId: { _id: string; name: string; avatar: string } }>({
+        .populate({
           path: "senderId",
           select: "name avatar",
         })
         .lean();
 
-      const messageWithSender = messages.map((message) => ({
-        ...message,
-        id: message._id,
+      const messageWithSender = messages.map((msg) => ({
+        ...msg,
+        id: msg._id,
         sender: {
-          id: message.senderId._id,
-          name: message.senderId.name,
-          avatar: message.senderId.avatar,
+          id: msg.senderId._id,
+          name: msg.senderId.name,
+          avatar: msg.senderId.avatar,
         },
       }));
 
@@ -174,10 +184,10 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
         data: messageWithSender,
       });
     } catch (error) {
-      console.log("getMessages Error: ", error);
+      console.log("getMessages Error:", error);
       socket.emit("getMessages", {
         success: false,
-        msg: "Failed to get message.",
+        msg: "Failed to get messages.",
       });
     }
   });
