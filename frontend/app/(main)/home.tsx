@@ -11,77 +11,107 @@ import Typo from "@/components/Typo";
 import { colors, radius, spacingX, spacingY } from "@/constants/theme";
 import { useAuth } from "@/context/authContext";
 import Button from "@/components/Button";
-import { testSocket } from "@/socket/socketEvents";
+import {
+  getConversations,
+  newConversation,
+  testSocket,
+} from "@/socket/socketEvents";
 import * as Icons from "phosphor-react-native";
 import { verticalScale } from "@/utils/styling";
 import { router, useRouter } from "expo-router";
 import ConversationItem from "@/components/ConversationItem";
 import Loading from "@/components/Loading";
+import { ConversationProps, ResponseProps } from "@/types";
 
 const Home = () => {
   const { user: currentUser, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [conversations, setConversations] = useState<ConversationProps[]>([]);
   const route = useRouter();
 
-  const conversations = [
-    {
-      name: "Ali",
-      type: "direct",
-      lastMessage: {
-        senderName: "Alice",
-        content: "Hey! Are we still on for tonight?",
-        createdAt: "2023-06-01T12:00:00.000Z",
-      },
-    },
-    {
-      name: "Project Team",
-      type: "group",
-      lastMessage: {
-        senderName: "Sarah",
-        content: "Meeting is rescheduled for next week",
-        createdAt: "2023-06-01T12:00:00.000Z",
-      },
-    },
-    {
-      name: "Sam",
-      type: "direct",
-      lastMessage: {
-        senderName: "Sam",
-        content: "Hey What's up?",
-        createdAt: "2023-06-01T12:00:00.000Z",
-      },
-    },
-    {
-      name: "Family Group",
-      type: "group",
-      lastMessage: {
-        senderName: "Mom",
-        content: "Thanks!! for the gift",
-        createdAt: "2023-06-01T12:00:00.000Z",
-      },
-    },
-    {
-      name: "Ash",
-      type: "direct",
-      lastMessage: {
-        senderName: "Ash",
-        content: "Hey I lov U",
-        createdAt: "2023-06-01T12:00:00.000Z",
-      },
-    },
-  ];
+  useEffect(() => {
+    getConversations(processConversations);
+    newConversation(newConversationHandler);
+    getConversations(null);
+
+    return () => {
+      getConversations(processConversations, true);
+      newConversation(newConversationHandler, true);
+    };
+  }, []);
+
+  const processConversations = (res: ResponseProps) => {
+    // console.log("got conversations: ", res);
+    if (res.success) {
+      setConversations(res.data);
+    }
+  };
+
+  const newConversationHandler = (res: ResponseProps) => {
+    if (res.success && res.data?.isNew) {
+      setConversations((prev) => [...prev, res.data]);
+    }
+  };
+
+  // const conversations = [
+  //   {
+  //     name: "Ali",
+  //     type: "direct",
+  //     lastMessage: {
+  //       senderName: "Alice",
+  //       content: "Hey! Are we still on for tonight?",
+  //       createdAt: "2023-06-01T12:00:00.000Z",
+  //     },
+  //   },
+  //   {
+  //     name: "Project Team",
+  //     type: "group",
+  //     lastMessage: {
+  //       senderName: "Sarah",
+  //       content: "Meeting is rescheduled for next week",
+  //       createdAt: "2023-06-01T12:00:00.000Z",
+  //     },
+  //   },
+  //   {
+  //     name: "Sam",
+  //     type: "direct",
+  //     lastMessage: {
+  //       senderName: "Sam",
+  //       content: "Hey What's up?",
+  //       createdAt: "2023-06-01T12:00:00.000Z",
+  //     },
+  //   },
+  //   {
+  //     name: "Family Group",
+  //     type: "group",
+  //     lastMessage: {
+  //       senderName: "Mom",
+  //       content: "Thanks!! for the gift",
+  //       createdAt: "2023-06-01T12:00:00.000Z",
+  //     },
+  //   },
+  //   {
+  //     name: "Ash",
+  //     type: "direct",
+  //     lastMessage: {
+  //       senderName: "Ash",
+  //       content: "Hey I lov U",
+  //       createdAt: "2023-06-01T12:00:00.000Z",
+  //     },
+  //   },
+  // ];
 
   let directConversations = conversations
-    .filter((item: any) => item.type === "direct")
-    .sort((a: any, b: any) => {
+    .filter((item: ConversationProps) => item.type === "direct")
+    .sort((a: ConversationProps, b: ConversationProps) => {
       const aDate = a?.lastMessage?.createdAt || a.createdAt;
       const bDate = b?.lastMessage?.createdAt || b.createdAt;
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
 
   let groupConversations = conversations
-    .filter((item: any) => item.type === "group")
-    .sort((a: any, b: any) => {
+    .filter((item: ConversationProps) => item.type === "group")
+    .sort((a: ConversationProps, b: ConversationProps) => {
       const aDate = a?.lastMessage?.createdAt || a.createdAt;
       const bDate = b?.lastMessage?.createdAt || b.createdAt;
       return new Date(bDate).getTime() - new Date(aDate).getTime();
@@ -147,7 +177,7 @@ const Home = () => {
 
             <View style={styles.conversationList}>
               {selectedTab == 0 &&
-                directConversations.map((item: any, index) => {
+                directConversations.map((item: ConversationProps, index) => {
                   return (
                     <ConversationItem
                       item={item}
@@ -158,7 +188,7 @@ const Home = () => {
                   );
                 })}
               {selectedTab == 1 &&
-                groupConversations.map((item: any, index) => {
+                groupConversations.map((item: ConversationProps, index) => {
                   return (
                     <ConversationItem
                       item={item}
