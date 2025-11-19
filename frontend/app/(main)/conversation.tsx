@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import Typo from "@/components/Typo";
 import { colors, radius, spacingX, spacingY } from "@/constants/theme";
@@ -25,11 +25,14 @@ import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import Loading from "@/components/Loading";
 import { uploadFileToCloudinary } from "@/services/imageService";
+import { getMessages, newMessage } from "@/socket/socketEvents";
+import { MessageProps, ResponseProps } from "@/types";
 
 const Conversations = () => {
   const { user: currentUser } = useAuth();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<MessageProps[]>([]);
   const [selectedFile, setSelectedFile] = useState<{ uri: string } | null>(
     null
   );
@@ -56,6 +59,34 @@ const Conversations = () => {
 
   let conversationName = isDirect ? otherParticipant.name : name;
 
+  useEffect(() => {
+    newMessage(newMessageHandler);
+    getMessages(messageHandler);
+    getMessages({ conversationId });
+
+    return () => {
+      newMessage(newMessageHandler, true);
+      getMessages(messageHandler, true);
+    };
+  }, []);
+
+  const newMessageHandler = (res: ResponseProps) => {
+    setLoading(false);
+    // console.log("got new message: ", res);
+    if (res.success) {
+      if (res.data.conversationId == conversationId) {
+        setMessages((prev) => [res.data as MessageProps, ...prev]);
+      }
+    } else {
+      Alert.alert("Error", res.msg);
+    }
+  };
+
+  const messageHandler = (res: ResponseProps) => {
+    if (res.success) {
+      setMessages(res.data);
+    }
+  };
   const onPickFile = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -70,148 +101,160 @@ const Conversations = () => {
   };
 
   const onSend = async () => {
-    if(!message.trim() && !selectedFile) return;
-    if(!currentUser) return;
+    if (!message.trim() && !selectedFile) return;
+    if (!currentUser) return;
 
     setLoading(true);
     try {
-      let attachment = null;
-      if(selectedFile){
-        const uploadResult = await uploadFileToCloudinary(selectedFile, "message-attachments");
+      let attachement = null;
+      if (selectedFile) {
+        const uploadResult = await uploadFileToCloudinary(
+          selectedFile,
+          "message-attachements"
+        );
 
-        if(uploadResult.success){
-          attachment = uploadResult.data;
-
-        }else {
+        if (uploadResult.success) {
+          attachement = uploadResult.data;
+        } else {
           setLoading(false);
           Alert.alert("Error", "Could not send the image!");
         }
-
-        // console.log("Uploaded image: ", attachment);
       }
+      newMessage({
+        conversationId,
+        sender: {
+          id: currentUser?.id,
+          name: currentUser.name,
+          avatar: currentUser.avatar,
+        },
+        content: message.trim(),
+        attachement,
+      });
+
+      setMessage("");
+      setSelectedFile(null);
     } catch (error) {
       console.log("Error sending message: ", error);
       Alert.alert("Error", "Failed to send message.");
-
-    }finally{
+    } finally {
       setLoading(false);
     }
   };
 
-  const dummyMessages = [
-    {
-      id: "msg_10",
-      sender: {
-        id: "user_2",
-        name: "Jade smith",
-        avatar: null,
-      },
-      content: "That would be really usefull!",
-      createdAt: "10:42 AM",
-      isMe: false,
-    },
-    {
-      id: "msg_9",
-      sender: {
-        id: "me",
-        name: "me",
-        avatar: null,
-      },
-      content:
-        "Yes, I'm thinking about adding message reactions and file sharing.",
-      createdAt: "10:41 AM",
-      isMe: true,
-    },
-    {
-      id: "msg_8",
-      sender: {
-        id: "user_2",
-        name: "Jade smith",
-        avatar: null,
-      },
-      content:
-        "Oh nice! Message reactions would make the chat feel more alive.",
-      createdAt: "10:40 AM",
-      isMe: false,
-    },
-    {
-      id: "msg_7",
-      sender: {
-        id: "me",
-        name: "me",
-        avatar: null,
-      },
-      content: "Exactly! I also want to add typing indicators.",
-      createdAt: "10:39 AM",
-      isMe: true,
-    },
-    {
-      id: "msg_6",
-      sender: {
-        id: "user_2",
-        name: "Jade smith",
-        avatar: null,
-      },
-      content: "Typing indicators make conversations feel more real.",
-      createdAt: "10:38 AM",
-      isMe: false,
-    },
-    {
-      id: "msg_5",
-      sender: {
-        id: "me",
-        name: "me",
-        avatar: null,
-      },
-      content: "True! I'm also planning to add dark mode soon.",
-      createdAt: "10:37 AM",
-      isMe: true,
-    },
-    {
-      id: "msg_4",
-      sender: {
-        id: "user_2",
-        name: "Jade smith",
-        avatar: null,
-      },
-      content: "Dark mode is a must-have. Excited for that!",
-      createdAt: "10:36 AM",
-      isMe: false,
-    },
-    {
-      id: "msg_3",
-      sender: {
-        id: "me",
-        name: "me",
-        avatar: null,
-      },
-      content: "Glad you like it! Trying to make the UI as clean as possible.",
-      createdAt: "10:35 AM",
-      isMe: true,
-    },
-    {
-      id: "msg_2",
-      sender: {
-        id: "user_2",
-        name: "Jade smith",
-        avatar: null,
-      },
-      content: "You're doing a great job honestly.",
-      createdAt: "10:34 AM",
-      isMe: false,
-    },
-    {
-      id: "msg_1",
-      sender: {
-        id: "me",
-        name: "me",
-        avatar: null,
-      },
-      content: "Thanks a lot Jade!",
-      createdAt: "10:33 AM",
-      isMe: true,
-    },
-  ];
+  // const dummyMessages = [
+  //   {
+  //     id: "msg_10",
+  //     sender: {
+  //       id: "user_2",
+  //       name: "Jade smith",
+  //       avatar: null,
+  //     },
+  //     content: "That would be really usefull!",
+  //     createdAt: "10:42 AM",
+  //     isMe: false,
+  //   },
+  //   {
+  //     id: "msg_9",
+  //     sender: {
+  //       id: "me",
+  //       name: "me",
+  //       avatar: null,
+  //     },
+  //     content:
+  //       "Yes, I'm thinking about adding message reactions and file sharing.",
+  //     createdAt: "10:41 AM",
+  //     isMe: true,
+  //   },
+  //   {
+  //     id: "msg_8",
+  //     sender: {
+  //       id: "user_2",
+  //       name: "Jade smith",
+  //       avatar: null,
+  //     },
+  //     content:
+  //       "Oh nice! Message reactions would make the chat feel more alive.",
+  //     createdAt: "10:40 AM",
+  //     isMe: false,
+  //   },
+  //   {
+  //     id: "msg_7",
+  //     sender: {
+  //       id: "me",
+  //       name: "me",
+  //       avatar: null,
+  //     },
+  //     content: "Exactly! I also want to add typing indicators.",
+  //     createdAt: "10:39 AM",
+  //     isMe: true,
+  //   },
+  //   {
+  //     id: "msg_6",
+  //     sender: {
+  //       id: "user_2",
+  //       name: "Jade smith",
+  //       avatar: null,
+  //     },
+  //     content: "Typing indicators make conversations feel more real.",
+  //     createdAt: "10:38 AM",
+  //     isMe: false,
+  //   },
+  //   {
+  //     id: "msg_5",
+  //     sender: {
+  //       id: "me",
+  //       name: "me",
+  //       avatar: null,
+  //     },
+  //     content: "True! I'm also planning to add dark mode soon.",
+  //     createdAt: "10:37 AM",
+  //     isMe: true,
+  //   },
+  //   {
+  //     id: "msg_4",
+  //     sender: {
+  //       id: "user_2",
+  //       name: "Jade smith",
+  //       avatar: null,
+  //     },
+  //     content: "Dark mode is a must-have. Excited for that!",
+  //     createdAt: "10:36 AM",
+  //     isMe: false,
+  //   },
+  //   {
+  //     id: "msg_3",
+  //     sender: {
+  //       id: "me",
+  //       name: "me",
+  //       avatar: null,
+  //     },
+  //     content: "Glad you like it! Trying to make the UI as clean as possible.",
+  //     createdAt: "10:35 AM",
+  //     isMe: true,
+  //   },
+  //   {
+  //     id: "msg_2",
+  //     sender: {
+  //       id: "user_2",
+  //       name: "Jade smith",
+  //       avatar: null,
+  //     },
+  //     content: "You're doing a great job honestly.",
+  //     createdAt: "10:34 AM",
+  //     isMe: false,
+  //   },
+  //   {
+  //     id: "msg_1",
+  //     sender: {
+  //       id: "me",
+  //       name: "me",
+  //       avatar: null,
+  //     },
+  //     content: "Thanks a lot Jade!",
+  //     createdAt: "10:33 AM",
+  //     isMe: true,
+  //   },
+  // ];
 
   return (
     <ScreenWrapper showPattern={true} bgOpacity={0.5}>
@@ -236,7 +279,7 @@ const Conversations = () => {
             </View>
           }
           rightIcon={
-            <TouchableOpacity style={{marginBottom: verticalScale(7)}}>
+            <TouchableOpacity style={{ marginBottom: verticalScale(7) }}>
               <Icons.DotsThreeOutlineVerticalIcon
                 weight="fill"
                 color={colors.white}
@@ -247,7 +290,7 @@ const Conversations = () => {
         {/* Messages */}
         <View style={styles.content}>
           <FlatList
-            data={dummyMessages}
+            data={messages}
             inverted={true}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.messageContent}

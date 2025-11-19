@@ -14,6 +14,7 @@ import Button from "@/components/Button";
 import {
   getConversations,
   newConversation,
+  newMessage,
   testSocket,
 } from "@/socket/socketEvents";
 import * as Icons from "phosphor-react-native";
@@ -32,11 +33,14 @@ const Home = () => {
   useEffect(() => {
     getConversations(processConversations);
     newConversation(newConversationHandler);
+    newMessage(newMessageHandler);
+
     getConversations(null);
 
     return () => {
       getConversations(processConversations, true);
       newConversation(newConversationHandler, true);
+      newMessage(newMessageHandler, true);
     };
   }, []);
 
@@ -44,6 +48,21 @@ const Home = () => {
     // console.log("got conversations: ", res);
     if (res.success) {
       setConversations(res.data);
+    }
+  };
+
+  const newMessageHandler = (res: ResponseProps) => {
+    if (res.success) {
+      let conversationId = res.data.conversationId;
+      setConversations((prev) => {
+        let updatedConversations = prev.map((item) => {
+          if (item._id == conversationId) {
+            item.lastMessage = res.data;
+          }
+          return item;
+        });
+        return updatedConversations;
+      });
     }
   };
 
