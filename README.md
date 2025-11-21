@@ -10,8 +10,6 @@ It supports **Android**, **iOS**, and **Web**, and provides a clean UI with smoo
 
 ## 📱 Screenshots
 
-> Replace the image URLs below with your actual links after uploading all 10 screenshots.
-
 ### 🔹 Screen Previews (1–3)
 
 | Screen 1 | Screen 2 | Screen 3 |
